@@ -235,24 +235,19 @@ class DataPrepper:
         # Loop over the hits structure returned by running `log_query` and then extract out the features from the response per query_id and doc id.  Also capture and return all query/doc pairs that didn't return features
         # Your structure should look like the data frame below
         response = self.opensearch.search(body=log_query, index=self.index_name)
-        hits = response['hits']['hits']
-        feature_results = {}
-        feature_results["doc_id"] = []  # capture the doc id so we can join later
-        feature_results["query_id"] = []  # ^^^
-        feature_results["sku"] = []
-        feature_results["name_match"] = []
+        feature_result_list = []
+        if response:
+            for hit in response['hits']['hits']:
+                feature_result = {}
+                feature_result["doc_id"] = hit['_id'] # capture the doc id so we can join later
+                feature_result["query_id"] = query_id # ^^^
+                feature_result["sku"] = hit['_source']['sku'][0]
+                log_entry = hit['fields']['_ltrlog'][0]['log_entry']
+                for feature in log_entry:
+                    feature_result[feature['name']] = feature.get('value',0)
+                feature_result_list.append(feature_result)
 
-        print(hits[0])
-        rng = np.random.default_rng(12345)
-
-        if len(hits) > 0:
-            for hit in hits:
-                feature_results["doc_id"].append(hit["_id"])
-                feature_results["query_id"].append(query_id)
-                feature_results["sku"].append(hit["_source"]["sku"][0])
-                feature_results["name_match"].append(hit["fields"]["_ltrlog"][0]["log_entry"][0].get("value"))
-
-        frame = pd.DataFrame(feature_results)
+        frame = pd.DataFrame(feature_result_list)
         return frame.astype({'doc_id': 'int64', 'query_id': 'int64', 'sku': 'int64'})
         # IMPLEMENT_END
 

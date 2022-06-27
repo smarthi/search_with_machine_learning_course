@@ -60,7 +60,7 @@
         }
       },
       {
-        "name": "artistName",
+        "name": "artistName_match",
         "params": [
           "keywords"
         ],
@@ -72,7 +72,7 @@
         }
       },
       {
-        "name": "shortDescription",
+        "name": "shortDescription_match",
         "params": [
           "keywords"
         ],
@@ -84,7 +84,7 @@
         }
       },
       {
-        "name": "longDescription",
+        "name": "longDescription_match",
         "params": [
           "keywords"
         ],
@@ -92,6 +92,23 @@
         "template": {
           "match_phrase": {
             "longDescription": {"query": "{{keywords}}", "slop": 6}
+          }
+        }
+      },
+      {
+        "name": "sku_match",
+        "params": [
+          "keywords"
+        ],
+        "template_language": "mustache",
+        "template": {
+          "constant_score": {
+            "filter": {
+              "match": {
+                "sku": "{{keywords}}"
+              }
+            },
+            "boost": 1.0
           }
         }
       }
