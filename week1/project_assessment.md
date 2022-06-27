@@ -55,7 +55,7 @@
 
 ------
 Submit your project along with your best MRR scores
-
+```
 Simple MRR is 0.335
 LTR Simple MRR is 0.419
 Hand tuned MRR is 0.422
@@ -67,3 +67,4 @@ Hand tuned p@10 is 0.178
 LTR hand tuned p@10 is 0.169
 Simple better: 533      LTR_Simple Better: 754  Equal: 9
 HT better: 698  LTR_HT Better: 764      Equal: 15
+```
