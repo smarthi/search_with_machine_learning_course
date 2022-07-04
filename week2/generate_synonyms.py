@@ -1,6 +1,7 @@
 import argparse
 import csv
 import fasttext
+import pandas as pd
 
 parser = argparse.ArgumentParser(description='Process some integers.')
 general = parser.add_argument_group("general")
@@ -16,22 +17,20 @@ output_file = args.output
 # Train model
 model = fasttext.load_model(model_path)
 
+threshold = 0.8
+df = pd.read_csv(top_words_file, sep='\t', header=None, names=["token"])
+tokens = df['token'].tolist()
+synonyms_dict = []
+
 # Get nearest neighbours
-nns = model.get_nearest_neighbors('iphone')
+for token in tokens:
+    synonyms_data = model.get_nearest_neighbors(token)
+    nn = [token]
+    for (similarity, synonym) in synonyms_data:
+        if similarity > threshold:
+            nn.append(synonym)
+    if len(nn) > 1:
+        synonyms_dict.append({"synonym": ', '.join(nn)})
 
-top_words = []
-
-with open(top_words_file, 'r') as f:
-    [top_words.append(word.strip()) for word in f]
-
-with open(output_file, 'w') as output:
-    writer = csv.writer(output, delimiter=',', escapechar=' ', quoting=csv.QUOTE_NONE)
-    for top_word in top_words:
-        row_to_write = [top_word]
-        top_word_nns = model.get_nearest_neighbors(top_word)
-        for sim, word in top_word_nns:
-            if sim > 0.75:
-                row_to_write.append(word)
-            else:
-                writer.writerow(row_to_write)
-                break
+synonym_df = pd.DataFrame(synonyms_dict)
+synonym_df.to_csv(output_file, header=False, index=False, sep='\t', quoting = csv.QUOTE_NONE)

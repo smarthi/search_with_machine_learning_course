@@ -1,0 +1,2 @@
+python week2/createContentTrainingData.py --output /workspace/datasets/fasttext/labeled_products.txt
+shuf /workspace/datasets/fasttext/labeled_products.txt > /workspace/datasets/fasttext/shuffled_labeled_products.txt
