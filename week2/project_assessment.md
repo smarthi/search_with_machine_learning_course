@@ -52,25 +52,51 @@ Did not attempt
 ## For deriving synonyms from content:
 
 1. What were the results for your best model in the tokens used for evaluation?
+```
+telecaster 0.920279
+starcaster 0.897186
+squier 0.822147
+strat 0.81252
+sunburst 0.784596
+forecaster 0.782318
+fretboard 0.780702
+fender 0.775712
+hss 0.765074
+tremolo 0.762667
 
+```
 2. What fastText parameters did you use?
 ``` 
--epcoh 25 -minCount 20 
+-epoch 25 -minCount 20 
 ```
 
 3. How did you transform the product names?
 
 ``` 
-Basic normalization with cat /workspace/datasets/fasttext/titles.txt | 
-sed -e "s/\([.\!?,'/()]\)/ \1 /g" | tr "[:upper:]" "[:lower:]" | sed "s/[^[:alnum:]]/ /g" | 
-tr -s ' ' > /workspace/datasets/fasttext/normalized_titles.txt
+def transform_name(product_name):
+    # IMPLEMENT
+    stemmer = SnowballStemmer("english")
+    if args.normalize:
+        # Remove all non-alphanumeric characters other than underscore
+        product_name = re.sub(r'[^\w_ ]', ' ', product_name)
+        # Convert all chars to lowercase
+        product_name = product_name.lower().strip()
+        # Stemmer
+        product_name = " ".join([stemmer.stem(word) for word in product_name.split()])
+    return product_name
 ```
 
 ## For integrating synonyms with search:
 
 1. How did you transform the product names (if different than previously)?
+```
+  Same as above in Levels 1 and 2.
+```
 
 2. What threshold score did you use?
+   ```
+     
+   ```
 
 3. Were you able to find the additional results by matching synonyms?
 
