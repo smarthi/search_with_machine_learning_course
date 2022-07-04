@@ -100,3 +100,6 @@ def transform_name(product_name):
 
 3. Were you able to find the additional results by matching synonyms?
 
+```
+  Yes for dslr and earbuds.
+```
