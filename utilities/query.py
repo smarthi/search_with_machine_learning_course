@@ -50,7 +50,6 @@ def create_prior_queries(doc_ids, doc_id_weights,
 
 # Hardcoded query here.  Better to use search templates or other query config.
 def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None):
-    name = "name.synonyms" if synonyms else "name"
     print(f"Search with synonyms: {synonyms}, {name_field}")
     query_obj = {
         'size': size,
@@ -67,7 +66,7 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
                         "should": [  #
                             {
                                 "match": {
-                                    "name": {
+                                    "name.synonym": {
                                         "query": user_query,
                                         "fuzziness": "1",
                                         "prefix_length": 2,

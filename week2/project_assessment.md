@@ -95,18 +95,8 @@ def transform_name(product_name):
 
 2. What threshold score did you use?
    ```
-     
+     0.8
    ```
 
 3. Were you able to find the additional results by matching synonyms?
-
-## For classifying reviews:
-
-1. What precision (P@1) were you able to achieve?
-
-2. What fastText parameters did you use?
-
-3. How did you transform the review content?
-
-4. What else did you try and learn?
 
