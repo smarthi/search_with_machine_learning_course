@@ -11,6 +11,7 @@ from urllib.parse import urljoin
 import pandas as pd
 import fileinput
 import logging
+import fasttext
 
 
 logger = logging.getLogger(__name__)
@@ -49,8 +50,18 @@ def create_prior_queries(doc_ids, doc_id_weights,
 
 
 # Hardcoded query here.  Better to use search templates or other query config.
-def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None):
+def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None,
+                 synonyms=False, predicted_category=None):
+    name_field = "name" if not synonyms else "name.synonyms"
     print(f"Search with synonyms: {synonyms}, {name_field}")
+
+    category = predicted_category[0][0].lstrip('__label__')
+    category_score = predicted_category[1][0]
+    print(f"Predicted: {category}:{category_score}")
+
+    if category_score > 0.5:
+        filters.append({"term": {"categoryLeaf": category}})
+
     query_obj = {
         'size': size,
         "sort": [
@@ -60,13 +71,11 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
             "function_score": {
                 "query": {
                     "bool": {
-                        "must": [
-
-                        ],
+                        "must": [],
                         "should": [  #
                             {
                                 "match": {
-                                    "name.synonym": {
+                                    name_field: {
                                         "query": user_query,
                                         "fuzziness": "1",
                                         "prefix_length": 2,
@@ -187,11 +196,17 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
     return query_obj
 
 
-def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc"):
+def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc", synonyms=False):
     #### W3: classify the query
+    model = fasttext.load_model("model_query_classifier_10000.bin")
+
+    predicted_category = model.predict(user_query)
     #### W3: create filters and boosts
     # Note: you may also want to modify the `create_query` method above
-    query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir, source=["name", "shortDescription"])
+    query_obj = create_query(user_query, click_prior_query=None, filters=[], sort=sort, sortDir=sortDir,
+                             source=["name", "shortDescription"], synonyms=synonyms,
+                             predicted_category=predicted_category)
+
     logging.info(query_obj)
     response = client.search(query_obj, index=index)
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:

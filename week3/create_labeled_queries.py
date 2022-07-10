@@ -1,13 +1,12 @@
-import os
 import argparse
 import xml.etree.ElementTree as ET
 import pandas as pd
-import numpy as np
-import csv
+import csv, string
 
 # Useful if you want to perform stemming.
 import nltk
-stemmer = nltk.stem.PorterStemmer()
+stemmer = nltk.stem.snowball.SnowballStemmer('english')
+spanish_stemmer = nltk.stem.snowball.SnowballStemmer('spanish')
 
 categories_file_name = r'/workspace/datasets/product_data/categories/categories_0001_abcat0010000_to_pcmcat99300050000.xml'
 
@@ -16,7 +15,7 @@ output_file_name = r'/workspace/datasets/labeled_query_data.txt'
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 general = parser.add_argument_group("general")
-general.add_argument("--min_queries", default=1,  help="The minimum number of queries per category label (default is 1)")
+general.add_argument("--min_queries", default=1000,  help="The minimum number of queries per category label (default is 1)")
 general.add_argument("--output", default=output_file_name, help="the file to output to")
 
 args = parser.parse_args()
@@ -49,8 +48,31 @@ df = pd.read_csv(queries_file_name)[['category', 'query']]
 df = df[df['category'].isin(categories)]
 
 # IMPLEMENT ME: Convert queries to lowercase, and optionally implement other normalization, like stemming.
+lowercase_transform = lambda x: x.strip().lower()
+punctuation_transform = lambda x: x.translate(str.maketrans('', '', string.punctuation))
+stemmer_transform = lambda x: stemmer.stem(x)
+spanish_stemmer_transform = lambda x: spanish_stemmer.stem(x)
+
+df['query'] = df['query'].apply(lowercase_transform).apply(punctuation_transform)\
+    .apply(spanish_stemmer_transform).apply(stemmer_transform)
 
 # IMPLEMENT ME: Roll up categories to ancestors to satisfy the minimum number of queries per category.
+min_products_per_category = int(args.min_queries)
+category_to_parents_lookup = dict(zip(parents_df.category, parents_df.parent))
+category_to_parents_lookup[root_category_id] = root_category_id
+
+while True:
+    grouped = df.groupby('category').count().reset_index()[['category', 'query']]
+    grouped.columns = ['category', 'num']
+
+    rollup_categories = set(grouped[grouped.num < min_products_per_category].category.values)
+    if len(rollup_categories) == 0:
+        break
+
+    current_mapping = {c: (c if c not in rollup_categories else category_to_parents_lookup[c]) for c in grouped.category.values}
+    df.category = df.category.apply(lambda x: current_mapping[x])
+    print(df.head(5))
+    print(f'num_categories: {len(set(df.category.values))}')
 
 # Create labels in fastText format.
 df['label'] = '__label__' + df['category']
