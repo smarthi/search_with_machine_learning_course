@@ -218,18 +218,18 @@ def classify_query(user_query:str, threshold:float=0.5, top_k:int=20):
 def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc"):
     #### W3: classify the query
     threshold = 0.5
-    query_classes, cummulative_probability = classify_query(user_query, threshold=threshold, top_k=3)
+    query_classes, cummulative_probability = classify_query(user_query, threshold=threshold, top_k=10)
 
     #### W3: create filters and boosts
     filter_expression = " OR ".join(query_classes).strip(" OR ")
     filters = [
-        {"terms": {"categoryPathIds": f"{filter_expression}"}}
+        {"terms": {"categoryPathIds.keyword": f"{filter_expression}"}}
     ]if (query_classes and cummulative_probability > threshold) else None
 
     print("filters", filters)
 
     # Note: you may also want to modify the `create_query` method above
-    query_obj = create_query(user_query, click_prior_query=None, filters=[], sort=sort, sortDir=sortDir,
+    query_obj = create_query(user_query, click_prior_query=None, filters=filters, sort=sort, sortDir=sortDir,
                              source=["name", "shortDescription"])
 
     query_obj_no_filters = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir,
@@ -240,13 +240,14 @@ def search(client, user_query, index="bbuy_products", sort="_score", sortDir="de
 
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
         hits = response['hits']['hits']
-        print(json.dumps(response, indent=2))
+        #print(json.dumps(response, indent=2))
 
         for hit in hits[:5]:
             print('-----------------------')
-            print(hit['_source']['name'][0])
-            print('  categoryPath:', hit['_source']['categoryPath'])
-            print('  categoryPathIds:', hit['_source']['categoryPathIds'])
+            print(hit['_source'])
+            print(hit['_source']['name'])
+            #print(' categoryPath:', hit['_source']['categoryPath'])
+            #print(' categoryPathIds:', hit['_source']['categoryPathIds'])
 
 
 if __name__ == "__main__":
