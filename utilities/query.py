@@ -57,18 +57,7 @@ def create_prior_queries(doc_ids, doc_id_weights,
 
 
 # Hardcoded query here.  Better to use search templates or other query config.
-def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None,
-                 synonyms=False, predicted_category=None):
-    name_field = "name" if not synonyms else "name.synonyms"
-    print(f"Search with synonyms: {synonyms}, {name_field}")
-
-    category = predicted_category[0][0].lstrip('__label__')
-    category_score = predicted_category[1][0]
-    print(f"Predicted: {category}:{category_score}")
-
-    if category_score > 0.5:
-        filters.append({"term": {"categoryLeaf": category}})
-
+def create_query(user_query, click_prior_query, filters, sort="_score", sortDir="desc", size=10, source=None):
     query_obj = {
         'size': size,
         "sort": [
@@ -205,12 +194,15 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
 def preprocess_query(user_query:str):
     preprocessed_query = re.sub(r"\s+","", user_query.strip().lower().replace('"', ''))
     preprocessed_query = "".join([c if c.isalnum() else "" for c in preprocessed_query])
-    preprocessed_query_tokens = nltk.tokenize.word_toeknize(preprocessed_query)
+    preprocessed_query_tokens = nltk.tokenize.word_tokenize(preprocessed_query)
     return "".join([stemmer.stem(token) for token in preprocessed_query_tokens])
 
 def classify_query(user_query:str, threshold:float=0.5, top_k:int=20):
     preprocessed_query = preprocess_query(user_query)
     classes, probabilities = model.predict(user_query, k=top_k)
+    print('predicted categories: ', classes)
+    print('probabilities: ', probabilities)
+
     relevant_classes = []
     cummulative_probability = 0.0
 
@@ -223,32 +215,38 @@ def classify_query(user_query:str, threshold:float=0.5, top_k:int=20):
 
     return relevant_classes, cummulative_probability
 
-def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc", synonyms=False):
+def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc"):
     #### W3: classify the query
-    threshold  = 0.5
-    query_classes, cummulative_probability = classify_query(user_query, threshold=threshold)
+    threshold = 0.5
+    query_classes, cummulative_probability = classify_query(user_query, threshold=threshold, top_k=3)
 
     #### W3: create filters and boosts
     filter_expression = " OR ".join(query_classes).strip(" OR ")
     filters = [
-        {"term": {"categoryLeaf": f"{filter_expression}"}}
+        {"terms": {"categoryPathIds": f"{filter_expression}"}}
     ]if (query_classes and cummulative_probability > threshold) else None
 
-    print(f"Query classes: {repr(query_classes)}",
-          f"Cummulative Probability: {cummulative_probability}")
-
     print("filters", filters)
-    
+
     # Note: you may also want to modify the `create_query` method above
     query_obj = create_query(user_query, click_prior_query=None, filters=[], sort=sort, sortDir=sortDir,
-                             source=["name", "shortDescription"], synonyms=synonyms,
-                             predicted_category=predicted_category)
+                             source=["name", "shortDescription"])
+
+    query_obj_no_filters = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir,
+                                       source=["name", "shortDescription"])
 
     logging.info(query_obj)
     response = client.search(query_obj, index=index)
+
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
         hits = response['hits']['hits']
         print(json.dumps(response, indent=2))
+
+        for hit in hits[:5]:
+            print('-----------------------')
+            print(hit['_source']['name'][0])
+            print('  categoryPath:', hit['_source']['categoryPath'])
+            print('  categoryPathIds:', hit['_source']['categoryPathIds'])
 
 
 if __name__ == "__main__":

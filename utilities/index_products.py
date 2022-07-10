@@ -106,6 +106,21 @@ def get_opensearch():
     )
     return client
 
+def annotate_document(doc, doc_url):
+    #payload = json.dumps(doc)
+    payload = json.dumps(doc)
+    #logger.info(f"Sending doc: {payload} to {doc_url}")
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    response = requests.request("POST", doc_url, headers=headers, data=payload)
+    logger.info(f"Annotation response: {response.status_code}")
+    name_syns = response.json()
+    if name_syns is not None and len(name_syns) > 0 and name_syns["name_synonyms"] is not None:
+        doc["name_synonyms"] = name_syns["name_synonyms"]
+        logger.info(f"Adding: {name_syns} to document: {doc}")
+    else:
+        logger.info(f"Invalid synonyms response: {name_syns}")
 
 def index_file(file, index_name, reduced=False):
     docs_indexed = 0
@@ -144,6 +159,7 @@ def index_file(file, index_name, reduced=False):
 @click.option('--source_dir', '-s', help='XML files source directory')
 @click.option('--index_name', '-i', default="bbuy_products", help="The name of the index to write to")
 @click.option('--workers', '-w', default=8, help="The name of the index to write to")
+@click.option('--documents_url', '-d', default="http://localhost:5000/documents/annotate", help="The location of the Flask App endpoint, something like http://localhost:5000/documents/annotate")
 @click.option('--reduced', is_flag=True, show_default=True, default=False, help="Removes music, movies, and merchandised products.")
 def main(source_dir: str, index_name: str, reduced: bool, workers: int, documents_url: str):
     logger.info(f"Indexing {source_dir} to {index_name} with {workers} workers, the reduced flag set to {reduced}.")
