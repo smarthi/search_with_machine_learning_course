@@ -12,11 +12,18 @@ import pandas as pd
 import fileinput
 import logging
 import fasttext
+import re
+import nltk
 
+nltk.download('punkt')
+stemmer = nltk.stem.snowball.SnowballStemmer('english')
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.basicConfig(format='%(levelname)s:%(message)s')
+
+model = fasttext.load_model("/workspace/search_with_machine_learning_course/"
+                            "model_query_classifier_10000.bin")
 
 # expects clicks and impressions to be in the row
 def create_prior_queries_from_group(
@@ -75,7 +82,7 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
                         "should": [  #
                             {
                                 "match": {
-                                    name_field: {
+                                    "name": {
                                         "query": user_query,
                                         "fuzziness": "1",
                                         "prefix_length": 2,
@@ -195,13 +202,43 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
         query_obj["_source"] = source
     return query_obj
 
+def preprocess_query(user_query:str):
+    preprocessed_query = re.sub(r"\s+","", user_query.strip().lower().replace('"', ''))
+    preprocessed_query = "".join([c if c.isalnum() else "" for c in preprocessed_query])
+    preprocessed_query_tokens = nltk.tokenize.word_toeknize(preprocessed_query)
+    return "".join([stemmer.stem(token) for token in preprocessed_query_tokens])
+
+def classify_query(user_query:str, threshold:float=0.5, top_k:int=20):
+    preprocessed_query = preprocess_query(user_query)
+    classes, probabilities = model.predict(user_query, k=top_k)
+    relevant_classes = []
+    cummulative_probability = 0.0
+
+    for (class_, probability_) in zip(classes, probabilities):
+        if cummulative_probability >= threshold:
+            return relevant_classes, cummulative_probability
+
+        relevant_classes.append(class_.strip('__label__'))
+        cummulative_probability += probability_
+
+    return relevant_classes, cummulative_probability
 
 def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc", synonyms=False):
     #### W3: classify the query
-    model = fasttext.load_model("model_query_classifier_10000.bin")
+    threshold  = 0.5
+    query_classes, cummulative_probability = classify_query(user_query, threshold=threshold)
 
-    predicted_category = model.predict(user_query)
     #### W3: create filters and boosts
+    filter_expression = " OR ".join(query_classes).strip(" OR ")
+    filters = [
+        {"term": {"categoryLeaf": f"{filter_expression}"}}
+    ]if (query_classes and cummulative_probability > threshold) else None
+
+    print(f"Query classes: {repr(query_classes)}",
+          f"Cummulative Probability: {cummulative_probability}")
+
+    print("filters", filters)
+    
     # Note: you may also want to modify the `create_query` method above
     query_obj = create_query(user_query, click_prior_query=None, filters=[], sort=sort, sortDir=sortDir,
                              source=["name", "shortDescription"], synonyms=synonyms,
