@@ -192,14 +192,12 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
     return query_obj
 
 def preprocess_query(user_query:str):
-    preprocessed_query = re.sub(r"\s+","", user_query.strip().lower().replace('"', ''))
-    preprocessed_query = "".join([c if c.isalnum() else "" for c in preprocessed_query])
-    preprocessed_query_tokens = nltk.tokenize.word_tokenize(preprocessed_query)
-    return "".join([stemmer.stem(token) for token in preprocessed_query_tokens])
+    preprocessed_query = user_query.lower().replace('"', '').split()
+    return ' '.join([stemmer.stem(token) for token in preprocessed_query])
 
 def classify_query(user_query:str, threshold:float=0.5, top_k:int=20):
     preprocessed_query = preprocess_query(user_query)
-    classes, probabilities = model.predict(user_query, k=top_k)
+    classes, probabilities = model.predict(preprocessed_query, k=top_k)
     print('predicted categories: ', classes)
     print('probabilities: ', probabilities)
 
@@ -221,15 +219,13 @@ def search(client, user_query, index="bbuy_products", sort="_score", sortDir="de
     query_classes, cummulative_probability = classify_query(user_query, threshold=threshold, top_k=10)
 
     #### W3: create filters and boosts
-    filter_expression = " OR ".join(query_classes).strip(" OR ")
-    filters = [
-        {"terms": {"categoryPathIds.keyword": f"{filter_expression}"}}
-    ]if (query_classes and cummulative_probability > threshold) else None
-
+    filters = {"terms": {
+            "categoryLeaf": query_classes
+        }}
     print("filters", filters)
 
     # Note: you may also want to modify the `create_query` method above
-    query_obj = create_query(user_query, click_prior_query=None, filters=filters, sort=sort, sortDir=sortDir,
+    query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir,
                              source=["name", "shortDescription"])
 
     query_obj_no_filters = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir,
@@ -237,7 +233,7 @@ def search(client, user_query, index="bbuy_products", sort="_score", sortDir="de
 
     logging.info(query_obj)
     response = client.search(query_obj, index=index)
-
+    print(response['hits']['hits'])
     if response and response['hits']['hits'] and len(response['hits']['hits']) > 0:
         hits = response['hits']['hits']
         #print(json.dumps(response, indent=2))
@@ -246,7 +242,6 @@ def search(client, user_query, index="bbuy_products", sort="_score", sortDir="de
             print('-----------------------')
             print(hit['_source'])
             print(hit['_source']['name'])
-            #print(' categoryPath:', hit['_source']['categoryPath'])
             #print(' categoryPathIds:', hit['_source']['categoryPathIds'])
 
 
