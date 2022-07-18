@@ -3,7 +3,7 @@
 from opensearchpy import OpenSearch
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
-import argparse
+import argparse, sys
 import json
 import os
 from getpass import getpass
@@ -18,7 +18,7 @@ import nltk
 nltk.download('punkt')
 stemmer = nltk.stem.snowball.SnowballStemmer('english')
 
-from sentence_transformer import SentenceTransformer
+from sentence_transformers import SentenceTransformer
 
 sentence_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
@@ -196,7 +196,8 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
     return query_obj
 
 def create_vector_query(user_query, num_results=10):
-    embedded_query = sentence_model.encode(user_query)[0]
+    embedded_query = sentence_model.encode([user_query]).tolist()[0]
+    print(embedded_query)
     query_obj = {
         "size": num_results,
         "query": {
@@ -232,7 +233,7 @@ def classify_query(user_query:str, threshold:float=0.5, top_k:int=20):
 
     return relevant_classes, cummulative_probability
 
-def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc"):
+def search(client, user_query, index="bbuy_products", sort="_score", sortDir="desc", do_vector_search=False):
     #### W3: classify the query
     threshold = 0.5
     query_classes, cummulative_probability = classify_query(user_query, threshold=threshold, top_k=10)
@@ -244,11 +245,15 @@ def search(client, user_query, index="bbuy_products", sort="_score", sortDir="de
     print("filters", filters)
 
     # Note: you may also want to modify the `create_query` method above
-    query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir,
+    if do_vector_search:
+        print("running vector search")
+        query_obj = create_vector_query(user_query)
+    else:
+        query_obj = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir,
                              source=["name", "shortDescription"])
 
-    query_obj_no_filters = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir,
-                                       source=["name", "shortDescription"])
+   # query_obj_no_filters = create_query(user_query, click_prior_query=None, filters=None, sort=sort, sortDir=sortDir,
+    #                                   source=["name", "shortDescription"])
 
     logging.info(query_obj)
     response = client.search(query_obj, index=index)
@@ -276,8 +281,8 @@ if __name__ == "__main__":
                          help='The OpenSearch host name')
     general.add_argument("-p", '--port', type=int, default=9200,
                          help='The OpenSearch port')
-    general.add_argument("-v", '--vector', action="store_true", help="Search using Vectors")
-    general.add_argument("-s", "--synonym", action="store_true", help="Search using Synonyms")
+    general.add_argument('--vector', action='store_true', help="Search using Vectors")
+    general.add_argument('--synonym', action='store_true', help="Search using Synonyms")
     general.add_argument('--user',
                          help='The OpenSearch admin.  If this is set, the program will prompt for password too. If not set, use default of admin/admin')
 
@@ -309,11 +314,11 @@ if __name__ == "__main__":
     index_name = args.index
     query_prompt = "\nEnter your query (type 'Exit' to exit or hit ctrl-c):"
     print(query_prompt)
-    for line in fileinput.input():
+    for line in fileinput.input(['-']):
         query = line.rstrip()
         if query == "Exit":
             break
-        search(client=opensearch, user_query=query, index=index_name)
+        search(client=opensearch, user_query=query, index=index_name, do_vector_search=args.vector)
 
         print(query_prompt)
 
