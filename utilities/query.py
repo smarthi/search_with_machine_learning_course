@@ -18,6 +18,10 @@ import nltk
 nltk.download('punkt')
 stemmer = nltk.stem.snowball.SnowballStemmer('english')
 
+from sentence_transformer import SentenceTransformer
+
+sentence_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.basicConfig(format='%(levelname)s:%(message)s')
@@ -191,6 +195,21 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
         query_obj["_source"] = source
     return query_obj
 
+def create_vector_query(user_query, num_results=10):
+    embedded_query = sentence_model.encode(user_query)[0]
+    query_obj = {
+        "size": num_results,
+        "query": {
+            "knn": {
+                "embedding": {
+                    "vector": embedded_query,
+                    "k": num_results
+                }
+            }
+        }
+    }
+    return query_obj
+
 def preprocess_query(user_query:str):
     preprocessed_query = user_query.lower().replace('"', '').split()
     return ' '.join([stemmer.stem(token) for token in preprocessed_query])
@@ -257,6 +276,8 @@ if __name__ == "__main__":
                          help='The OpenSearch host name')
     general.add_argument("-p", '--port', type=int, default=9200,
                          help='The OpenSearch port')
+    general.add_argument("-v", '--vector', action="store_true", help="Search using Vectors")
+    general.add_argument("-s", "--synonym", action="store_true", help="Search using Synonyms")
     general.add_argument('--user',
                          help='The OpenSearch admin.  If this is set, the program will prompt for password too. If not set, use default of admin/admin')
 
