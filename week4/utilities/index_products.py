@@ -16,9 +16,14 @@ import json
 
 from time import perf_counter
 
+from sentence_transformers import SentenceTransformer
+
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.basicConfig(format='%(levelname)s:%(message)s')
+
+model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
 # IMPLEMENT ME: import the sentence transformers module!
 
@@ -140,6 +145,11 @@ def index_file(file, index_name, reduced=False):
         #docs.append({'_index': index_name, '_source': doc})
         docs_indexed += 1
         if docs_indexed % 200 == 0:
+            logger.info("Creating Embeddings")
+            names = [doc['_source']['name'][0] for doc in docs]
+            names = model.encode(names)
+            for doc, embedded_name in zip(docs, names):
+                doc['_source']['embedding'] = embedded_name
             logger.info("Indexing")
             bulk(client, docs, request_timeout=60)
             logger.info(f'{docs_indexed} documents indexed')
